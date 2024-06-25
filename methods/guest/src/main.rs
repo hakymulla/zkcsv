@@ -14,8 +14,8 @@ risc0_zkvm::guest::entry!(main);
 
 #[derive(Debug, serde::Deserialize, Eq, PartialEq)]
 struct TypT {
-    type1: i64,
-    type2: i64,
+    type1: u128,
+    type2: u128,
 }
 
 fn main() {
@@ -28,12 +28,6 @@ fn main() {
         .from_reader(input.as_bytes());
 
 
-    let headers = rdr.headers().expect("error parsing age");
-    // let column_index = headers.iter().position(|header| header == column_name);
-    for head in headers{
-        println!("Header: {}", head);
-    }
-
     let mut ty = TypT { 
         type1: 0,
         type2: 0,
@@ -41,15 +35,9 @@ fn main() {
 
     for result in rdr.records() {
         let record = result.expect("expect result");
-        ty.type1 += record[0].parse::<i64>().expect("error parsing data");
-        ty.type2 += record[1].parse::<i64>().expect("error parsing data");
+        ty.type1 += record[0].parse::<u128>().expect("error parsing data");
+        ty.type2 += record[1].parse::<u128>().expect("error parsing data");
     }
-
-    let number_hash = *Impl::hash_bytes(&[20]);
-    println!{"The 20 is {}", number_hash};
-
-    let number_hash = *Impl::hash_bytes(&[45]);
-    println!{"The 45 is {}", number_hash};
 
     let out = Output{
         first_column_total: ty.type1,
@@ -57,14 +45,22 @@ fn main() {
         hash: input_hash
     };
 
-    let digest_str = "83891d7fe85c33e52c8b4e5814c92fb6a3b9467299200538a6babaa8b452d879";
-    let digest_bytes = hex::decode(digest_str).expect("Invalid hex string");
-    let digest = Digest::from(<[u8; 32]>::try_from(digest_bytes.as_slice()).expect("Invalid digest length"));
+    let digest_str = vec!["8e3acc5e2838174aa91dec2dae4225eedbeb60550211fc84d39fddb306c49a08", "28b6ba0c42d1cfd53494e823047dca937b4d3f98276be7be0d19712fc1462a1f"];
+
+    let digests: Vec<Digest> = digest_str
+        .iter()
+        .map(|s| {
+            let bytes = hex::decode(s).expect("Invalid hex string");
+            Digest::from(<[u8; 32]>::try_from(bytes.as_slice()).expect("Invalid digest length"))
+        })
+        .collect();
     
-    let data = *Impl::hash_bytes(&[ty.type1.try_into().unwrap()]);
+    let first_column = *Impl::hash_words(&[ty.type1.try_into().unwrap()]);
+    let second_column = *Impl::hash_words(&[ty.type2.try_into().unwrap()]);
 
-    assert!(data == digest, "wrong input calculation");
-
+    assert!(first_column == *digests.get(0).unwrap(), "wrong input calculation");
+    assert!(second_column == *digests.get(1).unwrap(), "wrong input calculation");
+    
     // write public output to the journal
     env::commit(&out);
 }
